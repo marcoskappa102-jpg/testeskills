@@ -20,6 +20,9 @@ public class PlayerController : MonoBehaviour
     public bool isDead = false;
     public bool inCombat = false;
     
+    // ✅ ADICIONADO: Propriedade para target do monstro
+    public int? targetMonsterId { get; set; }
+    
     [Header("UI")]
     public TextMeshProUGUI nameText;
     public GameObject healthBarCanvas;
@@ -56,7 +59,6 @@ public class PlayerController : MonoBehaviour
     private bool isAttacking = false;
     private float lastAttackTime = 0f;
 
-    // ✅ NOVO: Controle de estado de animação
     private bool wasDeadLastFrame = false;
     private bool wasMovingLastFrame = false;
     private bool wasInCombatLastFrame = false;
@@ -122,7 +124,6 @@ public class PlayerController : MonoBehaviour
         if (combatIcon != null)
             combatIcon.SetActive(false);
 
-        // ✅ Inicializa animador no estado correto
         InitializeAnimator();
 
         Debug.Log($"✅ PlayerController Start: {characterName} - CharacterController enabled: {characterController.enabled}");
@@ -220,6 +221,7 @@ public class PlayerController : MonoBehaviour
                     
                     currentTargetMonsterId = -1;
                     currentTarget = null;
+                    targetMonsterId = null; // ✅ ATUALIZA PROPRIEDADE
                     
                     if (UIManager.Instance != null)
                     {
@@ -256,6 +258,7 @@ public class PlayerController : MonoBehaviour
     {
         currentTarget = monster;
         currentTargetMonsterId = monster.monsterId;
+        targetMonsterId = monster.monsterId; // ✅ ATUALIZA PROPRIEDADE
         
         if (UIManager.Instance != null)
         {
@@ -319,6 +322,7 @@ public class PlayerController : MonoBehaviour
         {
             currentTargetMonsterId = -1;
             currentTarget = null;
+            targetMonsterId = null; // ✅ ATUALIZA PROPRIEDADE
             
             if (isLocalPlayer && UIManager.Instance != null)
             {
@@ -394,13 +398,6 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    // ========================================
-    // ✅ SISTEMA DE ANIMAÇÕES CORRIGIDO
-    // ========================================
-
-    /// <summary>
-    /// Inicializa o Animator no estado correto
-    /// </summary>
     private void InitializeAnimator()
     {
         if (animator == null)
@@ -409,18 +406,15 @@ public class PlayerController : MonoBehaviour
             return;
         }
 
-        // Reseta todos os parâmetros
         animator.SetBool("isWalking", false);
         animator.SetBool("inCombat", false);
         animator.SetBool("isDead", false);
         
-        // Se tiver trigger de ataque, reseta
         if (HasParameter(animator, "Attack"))
         {
             animator.ResetTrigger("Attack");
         }
 
-        // Define estado inicial
         if (isDead)
         {
             animator.SetBool("isDead", true);
@@ -429,18 +423,13 @@ public class PlayerController : MonoBehaviour
         Debug.Log($"🎬 {characterName}: Animator initialized - Dead:{isDead}, Walking:{serverIsMoving}, Combat:{serverInCombat}");
     }
 
-    /// <summary>
-    /// Atualiza animações baseado no estado do servidor
-    /// </summary>
     private void UpdateAnimations()
     {
         if (animator == null)
             return;
 
-        // ✅ PRIORIDADE: Morte tem prioridade máxima
         if (isDead)
         {
-            // Se acabou de morrer
             if (!wasDeadLastFrame)
             {
                 Debug.Log($"💀 {characterName}: Setting death animation");
@@ -457,15 +446,13 @@ public class PlayerController : MonoBehaviour
             wasDeadLastFrame = true;
             wasMovingLastFrame = false;
             wasInCombatLastFrame = false;
-            return; // Não processa mais nada se está morto
+            return;
         }
 
-        // ✅ Se estava morto e agora não está mais (respawn)
         if (wasDeadLastFrame && !isDead)
         {
             Debug.Log($"✨ {characterName}: Respawned - Resetting animator");
             
-            // FORÇA o reset completo
             animator.SetBool("isDead", false);
             animator.SetBool("isWalking", false);
             animator.SetBool("inCombat", false);
@@ -475,17 +462,14 @@ public class PlayerController : MonoBehaviour
                 animator.ResetTrigger("Attack");
             }
 
-            // Força transição para Idle
             animator.Play("Idle", 0, 0f);
             
             wasDeadLastFrame = false;
         }
 
-        // ✅ Atualiza animações normais (só se não estiver morto)
         bool shouldWalk = serverIsMoving && !isDead;
         bool shouldCombat = serverInCombat && !isDead;
 
-        // Detecta mudanças de estado
         if (shouldWalk != wasMovingLastFrame)
         {
             Debug.Log($"🚶 {characterName}: Walking changed to {shouldWalk}");
@@ -500,16 +484,12 @@ public class PlayerController : MonoBehaviour
             wasInCombatLastFrame = shouldCombat;
         }
 
-        // Atualiza flags de ataque
         if (isAttacking && Time.time - lastAttackTime >= attackAnimationDuration)
         {
             isAttacking = false;
         }
     }
 
-    /// <summary>
-    /// Toca animação de ataque
-    /// </summary>
     public void PlayAttackAnimation()
     {
         if (animator == null || isDead)
@@ -529,12 +509,9 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Verifica se o Animator tem um parâmetro específico
-    /// </summary>
     private bool HasParameter(Animator anim, string paramName)
     {
-        foreach (AnimatorControllerParameter param in anim.parameters)
+        foreach (UnityEngine.AnimatorControllerParameter param in anim.parameters)
         {
             if (param.name == paramName)
                 return true;
@@ -649,9 +626,6 @@ public class PlayerController : MonoBehaviour
         InitializeAnimator();
     }
 
-    /// <summary>
-    /// Chamado quando o player morre
-    /// </summary>
     public void OnDeath()
     {
         Debug.Log($"💀 {characterName}: OnDeath called");
@@ -659,6 +633,7 @@ public class PlayerController : MonoBehaviour
         isDead = true;
         inCombat = false;
         currentTargetMonsterId = -1;
+        targetMonsterId = null; // ✅ ATUALIZA PROPRIEDADE
         
         if (animator != null)
         {
@@ -692,9 +667,6 @@ public class PlayerController : MonoBehaviour
         wasDeadLastFrame = true;
     }
 
-    /// <summary>
-    /// Chamado quando o player renasce
-    /// </summary>
     public void OnRespawn(Vector3 position)
     {
         Debug.Log($"✨ {characterName}: OnRespawn called at ({position.x:F1}, {position.y:F1}, {position.z:F1})");
@@ -702,6 +674,7 @@ public class PlayerController : MonoBehaviour
         isDead = false;
         inCombat = false;
         currentTargetMonsterId = -1;
+        targetMonsterId = null; // ✅ ATUALIZA PROPRIEDADE
         
         if (TerrainHelper.Instance != null)
         {
@@ -720,7 +693,6 @@ public class PlayerController : MonoBehaviour
         {
             Debug.Log($"✨ {characterName}: Resetting animator after respawn");
             
-            // FORÇA reset completo
             animator.SetBool("isDead", false);
             animator.SetBool("inCombat", false);
             animator.SetBool("isWalking", false);
@@ -730,7 +702,6 @@ public class PlayerController : MonoBehaviour
                 animator.ResetTrigger("Attack");
             }
 
-            // Força estado Idle imediatamente
             animator.Play("Idle", 0, 0f);
         }
         
