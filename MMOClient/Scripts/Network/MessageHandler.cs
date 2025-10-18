@@ -6,12 +6,16 @@ using MMOClient.Skills;
 
 /// <summary>
 /// ✅ MessageHandler COMPLETO - Trata TODOS os tipos de mensagem do servidor
+/// CORRIGIDO: Agora expõe OnMessageReceived para outros sistemas
 /// </summary>
 public class MessageHandler : MonoBehaviour
 {
     public static MessageHandler Instance { get; private set; }
 
-    // Eventos para cada tipo de mensagem
+    // ✅ NOVO: Evento genérico para outros sistemas escutarem
+    public event Action<string> OnMessageReceived;
+
+    // Eventos específicos para cada tipo de mensagem
     public event Action<LoginResponseData> OnLoginResponse;
     public event Action<RegisterResponseData> OnRegisterResponse;
     public event Action<CreateCharacterResponseData> OnCreateCharacterResponse;
@@ -35,12 +39,12 @@ public class MessageHandler : MonoBehaviour
     public event Action<ItemEquippedData> OnItemUnequipped;
     public event Action<ItemDroppedData> OnItemDropped;
 
-
-public event Action<SkillResult> OnSkillUsed;
-public event Action<string> OnSkillUseFailed;
-public event Action<bool, string> OnSkillLearned;
-public event Action<bool, int> OnSkillLeveledUp;
-public event Action<System.Collections.Generic.List<LearnedSkill>> OnSkillsReceived;
+    // ✅ SKILLS
+    public event Action<SkillResult> OnSkillUsed;
+    public event Action<string> OnSkillUseFailed;
+    public event Action<bool, string> OnSkillLearned;
+    public event Action<bool, int> OnSkillLeveledUp;
+    public event Action<System.Collections.Generic.List<LearnedSkill>> OnSkillsReceived;
 
     private void Awake()
     {
@@ -67,6 +71,9 @@ public event Action<System.Collections.Generic.List<LearnedSkill>> OnSkillsRecei
     {
         try
         {
+            // ✅ DISPARA EVENTO GENÉRICO PRIMEIRO
+            OnMessageReceived?.Invoke(message);
+
             var json = JObject.Parse(message);
             var type = json["type"]?.ToString();
 
@@ -75,9 +82,10 @@ public event Action<System.Collections.Generic.List<LearnedSkill>> OnSkillsRecei
 
             switch (type)
             {
-				case "pong":
-					// Silencioso - ping/pong funcionando
-					break;
+                case "pong":
+                    // Silencioso - ping/pong funcionando
+                    break;
+
                 // ==================== LOGIN/ACCOUNT ====================
                 case "loginResponse":
                     HandleLoginResponse(json);
@@ -136,7 +144,6 @@ public event Action<System.Collections.Generic.List<LearnedSkill>> OnSkillsRecei
                     HandleStatusPointAdded(json);
                     break;
 
-                // ✅ CRÍTICO: Atualização de stats (HP/MP após usar poção)
                 case "playerStatsUpdate":
                     HandlePlayerStatsUpdate(json);
                     break;
@@ -182,30 +189,31 @@ public event Action<System.Collections.Generic.List<LearnedSkill>> OnSkillsRecei
                 case "itemDropped":
                     HandleItemDropped(json);
                     break;
-					
-					case "skillUsed":
-    HandleSkillUsed(json);
-    break;
 
-case "skillUseFailed":
-    HandleSkillUseFailed(json);
-    break;
+                // ==================== SKILLS ====================
+                case "skillUsed":
+                    HandleSkillUsed(json);
+                    break;
 
-case "skillLearned":
-    HandleSkillLearned(json);
-    break;
+                case "skillUseFailed":
+                    HandleSkillUseFailed(json);
+                    break;
 
-case "skillLeveledUp":
-    HandleSkillLeveledUp(json);
-    break;
+                case "skillLearned":
+                    HandleSkillLearned(json);
+                    break;
 
-case "skillsResponse":
-    HandleSkillsResponse(json);
-    break;
+                case "skillLeveledUp":
+                    HandleSkillLeveledUp(json);
+                    break;
 
-case "skillListResponse":
-    // Já é tratado pelo SkillBookUI
-    break;
+                case "skillsResponse":
+                    HandleSkillsResponse(json);
+                    break;
+
+                case "skillListResponse":
+                    // Já tratado pelo SkillBookUI via OnMessageReceived
+                    break;
 
                 // ==================== ERRORS ====================
                 case "error":
@@ -245,7 +253,6 @@ case "skillListResponse":
 
             Debug.Log($"📊 Stats update: HP={health}/{maxHealth}, MP={mana}/{maxMana}");
 
-            // Atualiza UI se for o player local
             if (playerId == ClientManager.Instance.PlayerId && UIManager.Instance != null)
             {
                 UIManager.Instance.UpdateHealthBar(health, maxHealth);
@@ -534,6 +541,187 @@ case "skillListResponse":
         OnPlayerDisconnected?.Invoke(playerId);
     }
 
+    // ==================== SKILLS ====================
+
+    private void HandleSkillUsed(JObject json)
+    {
+        try
+        {
+            var result = json["result"]?.ToObject<SkillResult>();
+            
+            if (result != null)
+            {
+                Debug.Log($"⚔️ Skill used: {result.attackerName}");
+                OnSkillUsed?.Invoke(result);
+                
+                if (result.targets != null)
+                {
+                    foreach (var target in result.targets)
+                    {
+                        if (target.damage > 0)
+                        {
+                            Debug.Log($"  → {target.targetName}: {target.damage} damage");
+                        }
+                        
+                        if (target.healing > 0)
+                        {
+                            Debug.Log($"  → {target.targetName}: {target.healing} healing");
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Error handling skill used: {ex.Message}");
+        }
+    }
+
+    private void HandleSkillUseFailed(JObject json)
+    {
+        try
+        {
+            int skillId = json["skillId"]?.ToObject<int>() ?? 0;
+            string reason = json["reason"]?.ToString() ?? "UNKNOWN";
+            
+            Debug.LogWarning($"⚠️ Skill {skillId} failed: {reason}");
+            OnSkillUseFailed?.Invoke(reason);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Error handling skill use failed: {ex.Message}");
+        }
+    }
+
+    private void HandleSkillLearned(JObject json)
+    {
+        try
+        {
+            bool success = json["success"]?.ToObject<bool>() ?? false;
+            string skillName = json["skillName"]?.ToString() ?? "";
+            
+            if (success)
+            {
+                Debug.Log($"✅ Skill learned: {skillName}");
+            }
+            
+            OnSkillLearned?.Invoke(success, skillName);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Error handling skill learned: {ex.Message}");
+        }
+    }
+
+    private void HandleSkillLeveledUp(JObject json)
+    {
+        try
+        {
+            bool success = json["success"]?.ToObject<bool>() ?? false;
+            int newLevel = json["newLevel"]?.ToObject<int>() ?? 1;
+            
+            if (success)
+            {
+                Debug.Log($"⬆️ Skill leveled up to {newLevel}");
+            }
+            
+            OnSkillLeveledUp?.Invoke(success, newLevel);
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Error handling skill level up: {ex.Message}");
+        }
+    }
+
+    private void HandleSkillsResponse(JObject json)
+    {
+        try
+        {
+            var skillsArray = json["skills"];
+            
+            if (skillsArray == null)
+            {
+                Debug.LogWarning("⚠️ Skills response has no skills array");
+                return;
+            }
+
+            var skills = new System.Collections.Generic.List<LearnedSkill>();
+
+            foreach (var skillJson in skillsArray)
+            {
+                var learnedSkill = new LearnedSkill
+                {
+                    skillId = skillJson["skillId"]?.ToObject<int>() ?? 0,
+                    currentLevel = skillJson["currentLevel"]?.ToObject<int>() ?? 1,
+                    slotNumber = skillJson["slotNumber"]?.ToObject<int>() ?? 0,
+                    lastUsedTime = skillJson["lastUsedTime"]?.ToObject<long>() ?? 0
+                };
+
+                var templateJson = skillJson["template"];
+                if (templateJson != null)
+                {
+                    learnedSkill.template = new SkillTemplate
+                    {
+                        id = templateJson["id"]?.ToObject<int>() ?? 0,
+                        name = templateJson["name"]?.ToString() ?? "",
+                        description = templateJson["description"]?.ToString() ?? "",
+                        skillType = templateJson["skillType"]?.ToString() ?? "",
+                        damageType = templateJson["damageType"]?.ToString() ?? "",
+                        targetType = templateJson["targetType"]?.ToString() ?? "",
+                        requiredLevel = templateJson["requiredLevel"]?.ToObject<int>() ?? 1,
+                        requiredClass = templateJson["requiredClass"]?.ToString() ?? "",
+                        maxLevel = templateJson["maxLevel"]?.ToObject<int>() ?? 1,
+                        manaCost = templateJson["manaCost"]?.ToObject<int>() ?? 0,
+                        healthCost = templateJson["healthCost"]?.ToObject<int>() ?? 0,
+                        cooldown = templateJson["cooldown"]?.ToObject<float>() ?? 0f,
+                        castTime = templateJson["castTime"]?.ToObject<float>() ?? 0f,
+                        duration = templateJson["duration"]?.ToObject<float>() ?? 0f,
+                        range = templateJson["range"]?.ToObject<float>() ?? 0f,
+                        areaRadius = templateJson["areaRadius"]?.ToObject<float>() ?? 0f,
+                        animationTrigger = templateJson["animationTrigger"]?.ToString() ?? "",
+                        effectPrefab = templateJson["effectPrefab"]?.ToString() ?? "",
+                        soundEffect = templateJson["soundEffect"]?.ToString() ?? "",
+                        iconPath = templateJson["iconPath"]?.ToString() ?? "",
+                        levels = new System.Collections.Generic.List<SkillLevelData>(),
+                        effects = new System.Collections.Generic.List<SkillEffect>()
+                    };
+
+                    var levelsArray = templateJson["levels"];
+                    if (levelsArray != null)
+                    {
+                        foreach (var levelJson in levelsArray)
+                        {
+                            learnedSkill.template.levels.Add(new SkillLevelData
+                            {
+                                level = levelJson["level"]?.ToObject<int>() ?? 1,
+                                baseDamage = levelJson["baseDamage"]?.ToObject<int>() ?? 0,
+                                baseHealing = levelJson["baseHealing"]?.ToObject<int>() ?? 0,
+                                damageMultiplier = levelJson["damageMultiplier"]?.ToObject<float>() ?? 1f,
+                                critChanceBonus = levelJson["critChanceBonus"]?.ToObject<float>() ?? 0f,
+                                statusPointCost = levelJson["statusPointCost"]?.ToObject<int>() ?? 1
+                            });
+                        }
+                    }
+                }
+
+                skills.Add(learnedSkill);
+            }
+
+            Debug.Log($"📚 Received {skills.Count} skills from server");
+            OnSkillsReceived?.Invoke(skills);
+
+            if (SkillManager.Instance != null)
+            {
+                SkillManager.Instance.LoadSkills(skills);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"❌ Error handling skills response: {ex.Message}");
+            Debug.LogError($"   Stack: {ex.StackTrace}");
+        }
+    }
+
     private void OnDestroy()
     {
         if (ClientManager.Instance != null)
@@ -541,191 +729,4 @@ case "skillListResponse":
             ClientManager.Instance.OnMessageReceived -= HandleMessage;
         }
     }
-	private void HandleSkillUsed(JObject json)
-{
-    try
-    {
-        var result = json["result"]?.ToObject<SkillResult>();
-        
-        if (result != null)
-        {
-            Debug.Log($"⚔️ Skill used: {result.attackerName}");
-            OnSkillUsed?.Invoke(result);
-            
-            // Processa resultados de combate
-            if (result.targets != null)
-            {
-                foreach (var target in result.targets)
-                {
-                    if (target.damage > 0)
-                    {
-                        Debug.Log($"  → {target.targetName}: {target.damage} damage");
-                    }
-                    
-                    if (target.healing > 0)
-                    {
-                        Debug.Log($"  → {target.targetName}: {target.healing} healing");
-                    }
-                }
-            }
-        }
-    }
-    catch (Exception ex)
-    {
-        Debug.LogError($"Error handling skill used: {ex.Message}");
-    }
-}
-
-private void HandleSkillUseFailed(JObject json)
-{
-    try
-    {
-        int skillId = json["skillId"]?.ToObject<int>() ?? 0;
-        string reason = json["reason"]?.ToString() ?? "UNKNOWN";
-        
-        Debug.LogWarning($"⚠️ Skill {skillId} failed: {reason}");
-        OnSkillUseFailed?.Invoke(reason);
-    }
-    catch (Exception ex)
-    {
-        Debug.LogError($"Error handling skill use failed: {ex.Message}");
-    }
-}
-
-private void HandleSkillLearned(JObject json)
-{
-    try
-    {
-        bool success = json["success"]?.ToObject<bool>() ?? false;
-        string skillName = json["skillName"]?.ToString() ?? "";
-        int slotNumber = json["slotNumber"]?.ToObject<int>() ?? 0;
-        
-        if (success)
-        {
-            Debug.Log($"✅ Skill learned: {skillName} in slot {slotNumber}");
-        }
-        else
-        {
-            Debug.LogWarning($"❌ Failed to learn skill");
-        }
-        
-        OnSkillLearned?.Invoke(success, skillName);
-    }
-    catch (Exception ex)
-    {
-        Debug.LogError($"Error handling skill learned: {ex.Message}");
-    }
-}
-
-private void HandleSkillLeveledUp(JObject json)
-{
-    try
-    {
-        bool success = json["success"]?.ToObject<bool>() ?? false;
-        int newLevel = json["newLevel"]?.ToObject<int>() ?? 1;
-        
-        if (success)
-        {
-            Debug.Log($"⬆️ Skill leveled up to {newLevel}");
-        }
-        
-        OnSkillLeveledUp?.Invoke(success, newLevel);
-    }
-    catch (Exception ex)
-    {
-        Debug.LogError($"Error handling skill level up: {ex.Message}");
-    }
-}
-
-private void HandleSkillsResponse(JObject json)
-{
-    try
-    {
-        var skillsArray = json["skills"];
-        
-        if (skillsArray == null)
-        {
-            Debug.LogWarning("⚠️ Skills response has no skills array");
-            return;
-        }
-
-        var skills = new System.Collections.Generic.List<LearnedSkill>();
-
-        foreach (var skillJson in skillsArray)
-        {
-            var learnedSkill = new LearnedSkill
-            {
-                skillId = skillJson["skillId"]?.ToObject<int>() ?? 0,
-                currentLevel = skillJson["currentLevel"]?.ToObject<int>() ?? 1,
-                slotNumber = skillJson["slotNumber"]?.ToObject<int>() ?? 0,
-                lastUsedTime = skillJson["lastUsedTime"]?.ToObject<long>() ?? 0
-            };
-
-            // Carrega template
-            var templateJson = skillJson["template"];
-            if (templateJson != null)
-            {
-                learnedSkill.template = new SkillTemplate
-                {
-                    id = templateJson["id"]?.ToObject<int>() ?? 0,
-                    name = templateJson["name"]?.ToString() ?? "",
-                    description = templateJson["description"]?.ToString() ?? "",
-                    skillType = templateJson["skillType"]?.ToString() ?? "",
-                    damageType = templateJson["damageType"]?.ToString() ?? "",
-                    targetType = templateJson["targetType"]?.ToString() ?? "",
-                    requiredLevel = templateJson["requiredLevel"]?.ToObject<int>() ?? 1,
-                    requiredClass = templateJson["requiredClass"]?.ToString() ?? "",
-                    maxLevel = templateJson["maxLevel"]?.ToObject<int>() ?? 1,
-                    manaCost = templateJson["manaCost"]?.ToObject<int>() ?? 0,
-                    healthCost = templateJson["healthCost"]?.ToObject<int>() ?? 0,
-                    cooldown = templateJson["cooldown"]?.ToObject<float>() ?? 0f,
-                    castTime = templateJson["castTime"]?.ToObject<float>() ?? 0f,
-                    duration = templateJson["duration"]?.ToObject<float>() ?? 0f,
-                    range = templateJson["range"]?.ToObject<float>() ?? 0f,
-                    areaRadius = templateJson["areaRadius"]?.ToObject<float>() ?? 0f,
-                    animationTrigger = templateJson["animationTrigger"]?.ToString() ?? "",
-                    effectPrefab = templateJson["effectPrefab"]?.ToString() ?? "",
-                    soundEffect = templateJson["soundEffect"]?.ToString() ?? "",
-                    iconPath = templateJson["iconPath"]?.ToString() ?? "",
-                    levels = new System.Collections.Generic.List<SkillLevelData>(),
-                    effects = new System.Collections.Generic.List<SkillEffect>()
-                };
-
-                // Carrega dados de nível
-                var levelsArray = templateJson["levels"];
-                if (levelsArray != null)
-                {
-                    foreach (var levelJson in levelsArray)
-                    {
-                        learnedSkill.template.levels.Add(new SkillLevelData
-                        {
-                            level = levelJson["level"]?.ToObject<int>() ?? 1,
-                            baseDamage = levelJson["baseDamage"]?.ToObject<int>() ?? 0,
-                            baseHealing = levelJson["baseHealing"]?.ToObject<int>() ?? 0,
-                            damageMultiplier = levelJson["damageMultiplier"]?.ToObject<float>() ?? 1f,
-                            critChanceBonus = levelJson["critChanceBonus"]?.ToObject<float>() ?? 0f,
-                            statusPointCost = levelJson["statusPointCost"]?.ToObject<int>() ?? 1
-                        });
-                    }
-                }
-            }
-
-            skills.Add(learnedSkill);
-        }
-
-        Debug.Log($"📚 Received {skills.Count} skills from server");
-        OnSkillsReceived?.Invoke(skills);
-
-        // Atualiza SkillManager
-        if (SkillManager.Instance != null)
-        {
-            SkillManager.Instance.LoadSkills(skills);
-        }
-    }
-    catch (Exception ex)
-    {
-        Debug.LogError($"❌ Error handling skills response: {ex.Message}");
-        Debug.LogError($"   Stack: {ex.StackTrace}");
-    }
-}
 }
