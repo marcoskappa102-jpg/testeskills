@@ -528,6 +528,7 @@ public List<LearnedSkill> LoadCharacterSkills(int characterId)
 
             SaveNextItemInstanceId(nextId + 1);
         }
+		
 
         public Inventory LoadInventory(int characterId)
         {
@@ -643,6 +644,18 @@ public List<LearnedSkill> LoadCharacterSkills(int characterId)
             var result = cmd.ExecuteScalar();
             return result != null ? Convert.ToInt32(result) : 1;
         }
+		
+		public int GetMaxItemInstanceId()
+{
+    using var conn = GetConnection();
+    conn.Open();
+
+    var query = "SELECT COALESCE(MAX(instance_id), 0) FROM item_instances";
+    using var cmd = new MySqlCommand(query, conn);
+    
+    var result = cmd.ExecuteScalar();
+    return result != null ? Convert.ToInt32(result) : 0;
+}
 
         public void SaveNextItemInstanceId(int nextId)
         {
