@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using MMOClient.Skills; // ✅ ADICIONE ESTA LINHA
 
 public class WorldManager : MonoBehaviour
 {
@@ -203,7 +204,6 @@ public class WorldManager : MonoBehaviour
             }
         }
 
-        // 🆕 Spawn monstros com prefabs corretos
         if (data.allMonsters != null)
         {
             Debug.Log($"👹 Spawning {data.allMonsters.Length} monsters");
@@ -217,7 +217,29 @@ public class WorldManager : MonoBehaviour
         }
 
         Debug.Log($"✅ World setup complete! Players: {playerObjects.Count}, Monsters: {monsterObjects.Count}");
+        
+        // ✅ CORREÇÃO: Solicita skills automaticamente APÓS entrar no mundo
+        if (SkillManager.Instance != null)
+        {
+            // Pequeno delay para garantir que tudo está inicializado
+            Invoke(nameof(RequestPlayerSkills), 0.5f);
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ SkillManager.Instance is null!");
+        }
     }
+    
+    // ✅ NOVO MÉTODO
+    private void RequestPlayerSkills()
+    {
+        if (SkillManager.Instance != null)
+        {
+            SkillManager.Instance.RequestSkills();
+            Debug.Log("📤 Auto-requesting player skills after world load");
+        }
+    }
+    
 
     private void HandleWorldStateUpdate(WorldStateData data)
     {
