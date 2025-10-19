@@ -35,7 +35,10 @@ namespace MMOServer.Server
             LoadItemTemplates();
             LoadLootTables();
             LoadInstanceIdCounter();
-            
+
+
+            SyncInstanceIdCounter();
+			
             Console.WriteLine($"✅ ItemManager: Loaded {itemTemplates.Count} items and {lootTables.Count} loot tables");
         }
 
@@ -703,8 +706,35 @@ public bool UnequipItem(string sessionId, string slot)
             LoadLootTables();
             Console.WriteLine("✅ Item configurations reloaded!");
         }
+		
+		private void SyncInstanceIdCounter()
+{
+    try
+    {
+        nextInstanceId = DatabaseHandler.Instance.GetNextItemInstanceId();
+        
+        // Verifica se há itens no banco com IDs maiores
+        int maxExistingId = DatabaseHandler.Instance.GetMaxItemInstanceId();
+        
+        if (maxExistingId >= nextInstanceId)
+        {
+            // Ajusta para o próximo ID disponível
+            nextInstanceId = maxExistingId + 1;
+            DatabaseHandler.Instance.SaveNextItemInstanceId(nextInstanceId);
+            
+            Console.WriteLine($"⚠️ Item counter adjusted: {maxExistingId} -> {nextInstanceId}");
+        }
+        
+        Console.WriteLine($"📦 Item instance counter: {nextInstanceId}");
     }
-
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Error syncing item counter: {ex.Message}");
+        nextInstanceId = 1; // Fallback
+    }
+}
+    }
+	
     [Serializable]
     public class ItemConfig
     {
