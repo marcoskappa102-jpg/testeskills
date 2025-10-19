@@ -633,94 +633,120 @@ public class MessageHandler : MonoBehaviour
         }
     }
 
-    private void HandleSkillsResponse(JObject json)
+// Substitua o método HandleSkillsResponse no MessageHandler.cs por este:
+
+private void HandleSkillsResponse(JObject json)
+{
+    try
     {
-        try
+        var skillsArray = json["skills"];
+        
+        if (skillsArray == null)
         {
-            var skillsArray = json["skills"];
-            
-            if (skillsArray == null)
-            {
-                Debug.LogWarning("⚠️ Skills response has no skills array");
-                return;
-            }
+            Debug.LogWarning("⚠️ Skills response has no skills array");
+            return;
+        }
 
-            var skills = new System.Collections.Generic.List<LearnedSkill>();
+        var skills = new System.Collections.Generic.List<LearnedSkill>();
 
-            foreach (var skillJson in skillsArray)
+        foreach (var skillJson in skillsArray)
+        {
+            var learnedSkill = new LearnedSkill
             {
-                var learnedSkill = new LearnedSkill
+                skillId = skillJson["skillId"]?.ToObject<int>() ?? 0,
+                currentLevel = skillJson["currentLevel"]?.ToObject<int>() ?? 1,
+                slotNumber = skillJson["slotNumber"]?.ToObject<int>() ?? 0,
+                lastUsedTime = skillJson["lastUsedTime"]?.ToObject<long>() ?? 0
+            };
+
+            // ✅ CARREGA TEMPLATE COMPLETO
+            var templateJson = skillJson["template"];
+            if (templateJson != null)
+            {
+                learnedSkill.template = new SkillTemplate
                 {
-                    skillId = skillJson["skillId"]?.ToObject<int>() ?? 0,
-                    currentLevel = skillJson["currentLevel"]?.ToObject<int>() ?? 1,
-                    slotNumber = skillJson["slotNumber"]?.ToObject<int>() ?? 0,
-                    lastUsedTime = skillJson["lastUsedTime"]?.ToObject<long>() ?? 0
+                    id = templateJson["id"]?.ToObject<int>() ?? 0,
+                    name = templateJson["name"]?.ToString() ?? "",
+                    description = templateJson["description"]?.ToString() ?? "",
+                    skillType = templateJson["skillType"]?.ToString() ?? "",
+                    damageType = templateJson["damageType"]?.ToString() ?? "",
+                    targetType = templateJson["targetType"]?.ToString() ?? "",
+                    requiredLevel = templateJson["requiredLevel"]?.ToObject<int>() ?? 1,
+                    requiredClass = templateJson["requiredClass"]?.ToString() ?? "",
+                    maxLevel = templateJson["maxLevel"]?.ToObject<int>() ?? 1,
+                    manaCost = templateJson["manaCost"]?.ToObject<int>() ?? 0,
+                    healthCost = templateJson["healthCost"]?.ToObject<int>() ?? 0,
+                    cooldown = templateJson["cooldown"]?.ToObject<float>() ?? 0f,
+                    castTime = templateJson["castTime"]?.ToObject<float>() ?? 0f,
+                    duration = templateJson["duration"]?.ToObject<float>() ?? 0f,
+                    range = templateJson["range"]?.ToObject<float>() ?? 0f,
+                    areaRadius = templateJson["areaRadius"]?.ToObject<float>() ?? 0f,
+                    animationTrigger = templateJson["animationTrigger"]?.ToString() ?? "",
+                    effectPrefab = templateJson["effectPrefab"]?.ToString() ?? "",
+                    soundEffect = templateJson["soundEffect"]?.ToString() ?? "",
+                    iconPath = templateJson["iconPath"]?.ToString() ?? "",
+                    levels = new System.Collections.Generic.List<SkillLevelData>(),
+                    effects = new System.Collections.Generic.List<SkillEffect>()
                 };
 
-                var templateJson = skillJson["template"];
-                if (templateJson != null)
+                // Carrega níveis
+                var levelsArray = templateJson["levels"];
+                if (levelsArray != null)
                 {
-                    learnedSkill.template = new SkillTemplate
+                    foreach (var levelJson in levelsArray)
                     {
-                        id = templateJson["id"]?.ToObject<int>() ?? 0,
-                        name = templateJson["name"]?.ToString() ?? "",
-                        description = templateJson["description"]?.ToString() ?? "",
-                        skillType = templateJson["skillType"]?.ToString() ?? "",
-                        damageType = templateJson["damageType"]?.ToString() ?? "",
-                        targetType = templateJson["targetType"]?.ToString() ?? "",
-                        requiredLevel = templateJson["requiredLevel"]?.ToObject<int>() ?? 1,
-                        requiredClass = templateJson["requiredClass"]?.ToString() ?? "",
-                        maxLevel = templateJson["maxLevel"]?.ToObject<int>() ?? 1,
-                        manaCost = templateJson["manaCost"]?.ToObject<int>() ?? 0,
-                        healthCost = templateJson["healthCost"]?.ToObject<int>() ?? 0,
-                        cooldown = templateJson["cooldown"]?.ToObject<float>() ?? 0f,
-                        castTime = templateJson["castTime"]?.ToObject<float>() ?? 0f,
-                        duration = templateJson["duration"]?.ToObject<float>() ?? 0f,
-                        range = templateJson["range"]?.ToObject<float>() ?? 0f,
-                        areaRadius = templateJson["areaRadius"]?.ToObject<float>() ?? 0f,
-                        animationTrigger = templateJson["animationTrigger"]?.ToString() ?? "",
-                        effectPrefab = templateJson["effectPrefab"]?.ToString() ?? "",
-                        soundEffect = templateJson["soundEffect"]?.ToString() ?? "",
-                        iconPath = templateJson["iconPath"]?.ToString() ?? "",
-                        levels = new System.Collections.Generic.List<SkillLevelData>(),
-                        effects = new System.Collections.Generic.List<SkillEffect>()
-                    };
-
-                    var levelsArray = templateJson["levels"];
-                    if (levelsArray != null)
-                    {
-                        foreach (var levelJson in levelsArray)
+                        learnedSkill.template.levels.Add(new SkillLevelData
                         {
-                            learnedSkill.template.levels.Add(new SkillLevelData
-                            {
-                                level = levelJson["level"]?.ToObject<int>() ?? 1,
-                                baseDamage = levelJson["baseDamage"]?.ToObject<int>() ?? 0,
-                                baseHealing = levelJson["baseHealing"]?.ToObject<int>() ?? 0,
-                                damageMultiplier = levelJson["damageMultiplier"]?.ToObject<float>() ?? 1f,
-                                critChanceBonus = levelJson["critChanceBonus"]?.ToObject<float>() ?? 0f,
-                                statusPointCost = levelJson["statusPointCost"]?.ToObject<int>() ?? 1
-                            });
-                        }
+                            level = levelJson["level"]?.ToObject<int>() ?? 1,
+                            baseDamage = levelJson["baseDamage"]?.ToObject<int>() ?? 0,
+                            baseHealing = levelJson["baseHealing"]?.ToObject<int>() ?? 0,
+                            damageMultiplier = levelJson["damageMultiplier"]?.ToObject<float>() ?? 1f,
+                            critChanceBonus = levelJson["critChanceBonus"]?.ToObject<float>() ?? 0f,
+                            statusPointCost = levelJson["statusPointCost"]?.ToObject<int>() ?? 1
+                        });
                     }
                 }
 
-                skills.Add(learnedSkill);
+                // ✅ NOVO: Carrega efeitos (se houver)
+                var effectsArray = templateJson["effects"];
+                if (effectsArray != null)
+                {
+                    foreach (var effectJson in effectsArray)
+                    {
+                        learnedSkill.template.effects.Add(new SkillEffect
+                        {
+                            effectType = effectJson["effectType"]?.ToString() ?? "",
+                            targetStat = effectJson["targetStat"]?.ToString() ?? "",
+                            value = effectJson["value"]?.ToObject<int>() ?? 0,
+                            duration = effectJson["duration"]?.ToObject<float>() ?? 0f,
+                            chance = effectJson["chance"]?.ToObject<float>() ?? 1f
+                        });
+                    }
+                }
             }
-
-            Debug.Log($"📚 Received {skills.Count} skills from server");
-            OnSkillsReceived?.Invoke(skills);
-
-            if (SkillManager.Instance != null)
+            else
             {
-                SkillManager.Instance.LoadSkills(skills);
+                Debug.LogWarning($"⚠️ Skill {learnedSkill.skillId} has no template!");
             }
+
+            skills.Add(learnedSkill);
         }
-        catch (Exception ex)
+
+        Debug.Log($"📚 Received {skills.Count} skills from server");
+        OnSkillsReceived?.Invoke(skills);
+
+        // Atualiza SkillManager
+        if (SkillManager.Instance != null)
         {
-            Debug.LogError($"❌ Error handling skills response: {ex.Message}");
-            Debug.LogError($"   Stack: {ex.StackTrace}");
+            SkillManager.Instance.LoadSkills(skills);
         }
     }
+    catch (Exception ex)
+    {
+        Debug.LogError($"❌ Error handling skills response: {ex.Message}");
+        Debug.LogError($"   Stack: {ex.StackTrace}");
+    }
+}
 
     private void OnDestroy()
     {
